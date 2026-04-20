@@ -2,8 +2,21 @@
 session_start();
 require 'config.php';
 
-// Only admins or managers can access
-if (!isset($_SESSION['role_id']) || !in_array($_SESSION['role_id'], [1, 2])) {
+if (!isset($_SESSION['role_id'])) {
+    die("Access denied.");
+}
+
+// Load permission flags from role table instead of hardcoded IDs.
+$roleStmt = $pdo->prepare("
+    SELECT role_name, can_edit_others, can_manage_users
+    FROM ROLES
+    WHERE role_id = ?
+    LIMIT 1
+");
+$roleStmt->execute([$_SESSION['role_id']]);
+$currentRole = $roleStmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$currentRole || !$currentRole['can_edit_others']) {
     die("Access denied.");
 }
 
@@ -48,6 +61,11 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <a href="index.php">
             <button style="background:#4CAF50; color:white;">Back to Employee Clock-In</button>
         </a>
+        <?php if (!empty($currentRole['can_manage_users'])): ?>
+            <a href="admin.php">
+                <button style="background:#1f4e79; color:white;">Employee Management</button>
+            </a>
+        <?php endif; ?>
     </div>
 
     <form method="GET" style="margin-top:15px;">
