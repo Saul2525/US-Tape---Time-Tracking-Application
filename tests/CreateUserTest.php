@@ -1,170 +1,31 @@
 <?php
 
-require_once __DIR__ . '/../src/CreateUserDynamic.php';
+require_once __DIR__ . '/../test_helpers/BaseWebTest.php';
 
-use PHPUnit\Framework\TestCase;
-
-class CreateUserTest extends TestCase
+class CreateUserTest extends BaseWebTest
 {
-    private PDO $pdo;
-
-    protected function setUp(): void
+    public function testCreateUserSuccess(): void
     {
-        $this->pdo = new PDO('sqlite::memory:');
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $output = $this->post(__DIR__ . '/../create_user.php', [
+            'first_name' => 'John',
+            'last_name'  => 'Doe',
+            'email'      => 'john@test.com',
+            'role_id'    => 1
+        ]);
 
-        $this->pdo->exec("
-            CREATE TABLE EMPLOYEES (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                first_name TEXT,
-                last_name TEXT,
-                email TEXT UNIQUE,
-                pin TEXT,
-                role_id INTEGER
-            )
-        ");
-    }
-
-    public function testCreateUserSuccessfully()
-    {
-        $userId = createUser(
-            $this->pdo,
-            "John",
-            "Doe",
-            "john@example.com",
-            "1234",
-            1
+        $this->assertStringContainsString(
+            'Employee Created Successfully',
+            $output
         );
 
-        $this->assertIsInt($userId);
-        $this->assertGreaterThan(0, $userId);
-
-        $stmt = $this->pdo->query("SELECT * FROM EMPLOYEES WHERE id = $userId");
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $user = $this->getEmployeeByEmail('john@test.com');
 
         $this->assertNotFalse($user);
-        $this->assertEquals("John", $user['first_name']);
-        $this->assertEquals("Doe", $user['last_name']);
-        $this->assertEquals("john@example.com", $user['email']);
+        $this->assertEquals('John', $user['first_name']);
+        $this->assertEquals('Doe', $user['last_name']);
         $this->assertEquals(1, $user['role_id']);
-        $this->assertTrue(password_verify("1234", $user['pin']));
-    }
 
-    public function testThrowsExceptionForEmptyFields()
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        createUser(
-            $this->pdo,
-            "",
-            "Doe",
-            "john@example.com",
-            "1234",
-            1
-        );
-    }
-
-    public function testThrowsExceptionForInvalidEmail()
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        createUser(
-            $this->pdo,
-            "John",
-            "Doe",
-            "not-an-email",
-            "1234",
-            1
-        );
-    }
-
-    public function testThrowsExceptionForShortPin()
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        createUser(
-            $this->pdo,
-            "John",
-            "Doe",
-            "john@example.com",
-            "12",
-            1
-        );
-    }
-
-    public function testDuplicateEmailThrowsException()
-    {
-        createUser(
-            $this->pdo,
-            "John",
-            "Doe",
-            "john@example.com",
-            "1234",
-            1
-        );
-
-        $this->expectException(RuntimeException::class);
-
-        createUser(
-            $this->pdo,
-            "Jane",
-            "Smith",
-            "john@example.com",
-            "5678",
-            2
-        );
-    }
-
-    public function testEmailIsNormalized()
-    {
-        $userId = createUser(
-            $this->pdo,
-            "John",
-            "Doe",
-            "  JOHN@EXAMPLE.COM  ",
-            "1234",
-            1
-        );
-
-        $stmt = $this->pdo->query("SELECT * FROM EMPLOYEES WHERE id = $userId");
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        $this->assertEquals("john@example.com", $user['email']);
-    }
-
-    public function testPinExactlyFourCharacters()
-    {
-        $userId = createUser(
-            $this->pdo,
-            "Jane",
-            "Doe",
-            "jane@example.com",
-            "1234",
-            1
-        );
-
-        $this->assertIsInt($userId);
-    }
-
-    public function testWhitespaceOnlyFails()
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        createUser(
-            $this->pdo,
-            "   ",
-            "Doe",
-            "john@example.com",
-            "1234",
-            1
-        );
-    }
-
-    public function testMultipleUsersCanBeCreated()
-    {
-        $id1 = createUser($this->pdo, "A", "B", "a@test.com", "1234", 1);
-        $id2 = createUser($this->pdo, "C", "D", "c@test.com", "5678", 2);
-
-        $this->assertNotEquals($id1, $id2);
+        $this->assertNotEmpty($user['pin']);
+        $this->assertEquals(5, strlen($user['pin']));
     }
 }

@@ -10,6 +10,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: timeclock
+        ports:
+          - 3306:3306
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,11 +27,28 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.5"
-          extensions: pdo, pdo_sqlite, zip
+          extensions: pdo, pdo_mysql, zip
           coverage: none
 
-      - name: Install Composer
+      - name: Install Composer Dependencies
         run: composer install --no-interaction --prefer-dist
+
+      - name: Initialize Database
+        run: mysql -h 127.0.0.1 -P 3306 -u root -proot timeclock < db.sql
+
+      - name: Create config.php
+        run: |
+          cat > config.php << 'PHP'
+          <?php
+
+          $pdo = new PDO(
+              'mysql:host=127.0.0.1;port=3306;dbname=timeclock;charset=utf8mb4',
+              'root',
+              'root'
+          );
+
+          $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+          PHP
 
       - name: Run Tests
         run: composer test
