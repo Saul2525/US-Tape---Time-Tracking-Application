@@ -50,22 +50,36 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
         th { background: #f4f4f4; }
         button { padding:5px 10px; margin-right:5px; }
         input[type=text], input[type=date] { padding: 5px; margin-right: 5px; }
-        .top-buttons { margin-top: 20px; }
+        .top-row { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .top-buttons { display: flex; align-items: center; gap: 8px; }
+        .export-button {
+            border: 0;
+            background: #1d4ed8;
+            color: #fff;
+            padding: 9px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h2>Manager Dashboard</h2>
 
-    <div class="top-buttons">
-        <!-- Back to Employee Clock-In Home -->
-        <a href="index.php">
-            <button style="background:#4CAF50; color:white;">Back to Employee Clock-In</button>
-        </a>
-        <?php if (!empty($currentRole['can_manage_users'])): ?>
-            <a href="admin.php">
-                <button style="background:#1f4e79; color:white;">Employee Management</button>
+    <div class="top-row">
+        <div class="top-buttons">
+            <!-- Back to Employee Clock-In Home -->
+            <a href="index.php">
+                <button style="background:#4CAF50; color:white;">Back to Employee Clock-In</button>
             </a>
-        <?php endif; ?>
+            <?php if (!empty($currentRole['can_manage_users'])): ?>
+                <a href="admin.php">
+                    <button style="background:#1f4e79; color:white;">Employee Management</button>
+                </a>
+            <?php endif; ?>
+        </div>
+        <button class="export-button" type="button" title="Coming soon">Export to Excell</button>
     </div>
 
     <form method="GET" style="margin-top:15px;">
