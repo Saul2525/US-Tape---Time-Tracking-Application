@@ -9,24 +9,46 @@ abstract class BaseWebTest extends TestCase
     protected function setUp(): void
     {
         $this->pdo = new PDO(
-            'mysql:host=127.0.0.1;port=3306;dbname=timeclock;charset=utf8mb4',
-            'root',
-            'root'
+            "mysql:host=" . getenv('DB_HOST') .
+                ";port=3306;dbname=" . getenv('DB_NAME') .
+                ";charset=utf8mb4",
+            getenv('DB_USER'),
+            getenv('DB_PASS')
         );
 
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+        // Start each test with a clean database.
+        $this->pdo->exec("DELETE FROM AUDIT_LOG");
+        $this->pdo->exec("DELETE FROM WORK_TIMES");
+        $this->pdo->exec("DELETE FROM EMPLOYEES");
     }
 
-    protected function post(string $filePath, array $postData): string
+    protected function post(string $url, array $postData): array
     {
-        $_POST = $postData;
+        $ch = curl_init($url);
 
-        ob_start();
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $postData,
+            CURLOPT_RETURNTRANSFER => true,
+        ]);
 
-        include $filePath;
+        $response = curl_exec($ch);
 
-        return ob_get_clean();
+        if ($response === false) {
+            $error = curl_error($ch);
+
+            $this->fail("HTTP request failed: " . $error);
+        }
+
+        $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        return [
+            'status' => $statusCode,
+            'body' => $response
+        ];
     }
 
     protected function getEmployeeByEmail(string $email): array|false
