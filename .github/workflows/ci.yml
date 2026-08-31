@@ -10,6 +10,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      DB_HOST: 127.0.0.1
+      DB_NAME: timeclock
+      DB_USER: root
+      DB_PASS: root
+
     services:
       mysql:
         image: mysql:8.0
@@ -35,6 +41,22 @@ jobs:
 
       - name: Initialize Database
         run: mysql -h 127.0.0.1 -P 3306 -u root -proot timeclock < db.sql
+
+      - name: Create config.php
+        run: |
+          cat > config.php <<'PHP'
+          <?php
+
+          $pdo = new PDO(
+              "mysql:host=" . getenv('DB_HOST') .
+              ";dbname=" . getenv('DB_NAME') .
+              ";charset=utf8mb4",
+              getenv('DB_USER'),
+              getenv('DB_PASS')
+          );
+
+          $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+          PHP
 
       - name: Start PHP Server
         run: php -S 127.0.0.1:8000 > php-server.log 2>&1 &
