@@ -224,7 +224,9 @@ $totalHours = round($totalMinutes / 60, 2);
         <h2 class="page-title"><?php echo htmlspecialchars($employee['first_name'].' '.$employee['last_name']); ?> - Shifts</h2>
         <p class="subtext">Edit times in a simple format: <strong>YYYY-MM-DD HH:MM</strong> (example: 2026-04-21 08:30)</p>
     </div>
-    <button class="export-button" type="button" title="Coming soon">Export to Excell</button>
+    <a href="export_shifts.php?employee_id=<?php echo (int) $employee_id; ?>&from=<?php echo urlencode($fromDate); ?>&to=<?php echo urlencode($toDate); ?>">
+        <button class="export-button" type="button">Export to Excel</button>
+    </a>
 </div>
 
 <div class="card">

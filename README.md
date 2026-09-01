@@ -128,6 +128,11 @@ http://127.0.0.1:8000/manager_login.php
 
 ---
 
+Some Temp Employe login numbers:
+Employee1: 21850
+Employee2: 09924
+Employee3: 95425
+
 ## �👨‍💻 Author
 
 Developed by Gabriel Kagwanja, Chris Anderson, and Saul Toribio

@@ -27,7 +27,8 @@ Living reference doc. Update checkboxes as items get fixed. Grouped by priority:
 - [ ] `dashboard.php` reads `$_GET['employee_id']` with no existence check — missing/invalid id produces a raw PHP warning instead of a clean error.
 - [ ] `cron_anomaly.php` only echoes alerts to stdout. If this is meant to run on a schedule, it needs an actual notification path (email/Slack/log file) or it will alert no one.
 - [ ] Audit log capture in `update_shift.php` assumes `$_SESSION['user_id']` is set — fine today since the page is (nominally) session-gated, but once the permission check above is added, make sure the audit insert still can't run with a null `changed_by`.
-- [ ] "Export to Excel" buttons on `manager_dashboard.php` and `employee_shifts.php` are non-functional stubs (`title="Coming soon"`). Either build it or remove the button so it's not misleading in the UI.
+- [x] ~~"Export to Excel" buttons on `manager_dashboard.php` and `employee_shifts.php` are non-functional stubs~~ — **Done (2026-09-01).** Added `export_shifts.php`: CSV download (no third-party libraries, per the intranet-only constraint), gated behind the same `can_edit_others` session check as `manager_dashboard.php`. Wired both buttons to it, carrying the page's current `from`/`to`/`search`/`employee_id` filters. Tested locally end-to-end (unauthenticated block, full export, single-employee export, search-filtered export) — see note below.
+- [ ] **Confirmed live**: while testing the export against real local data, one shift row came back with **negative hours** (clock-out before clock-in, employee_id 3, 2026-04-20 17:51 → 17:46). This is direct evidence for the "no server-side validation on edited shift times" item above — it's not a hypothetical, bad data already exists. Prioritize the `update_shift.php` validation fix.
 
 ## P2 — Polish / planned features (from README's own roadmap)
 
