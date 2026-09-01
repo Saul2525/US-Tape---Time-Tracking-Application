@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($user['password'] !== $password) {  // Plain text comparison
         $error = "Invalid credentials.";
     }
-    elseif (!in_array($user['role_id'], [1,2])) {  // Admin or Manager
+    elseif (!in_array((int) $user['role_id'], [2, 3])) {  // Manager or Admin
         $error = "Access denied.";
     }
     else {
