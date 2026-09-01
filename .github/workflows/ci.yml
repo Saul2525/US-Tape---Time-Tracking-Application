@@ -39,8 +39,28 @@ jobs:
       - name: Install Composer Dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping \
+              -h "$DB_HOST" \
+              -P 3306 \
+              -u "$DB_USER" \
+              -p"$DB_PASS" \
+              --silent; then
+              echo "MySQL is ready."
+              exit 0
+            fi
+
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+          echo "MySQL failed to start."
+          exit 1
+
       - name: Initialize Database
-        run: mysql -h 127.0.0.1 -P 3306 -u root -proot timeclock < db.sql
+        run: mysql -h "$DB_HOST" -P 3306 -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < db.sql
 
       - name: Create config.php
         run: |
@@ -49,7 +69,7 @@ jobs:
 
           $pdo = new PDO(
               "mysql:host=" . getenv('DB_HOST') .
-              ";dbname=" . getenv('DB_NAME') .
+              ";port=3306;dbname=" . getenv('DB_NAME') .
               ";charset=utf8mb4",
               getenv('DB_USER'),
               getenv('DB_PASS')
@@ -68,6 +88,8 @@ jobs:
               echo "PHP server is ready."
               exit 0
             fi
+
+            echo "Waiting for PHP server..."
             sleep 1
           done
 
