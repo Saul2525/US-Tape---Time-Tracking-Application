@@ -79,7 +79,9 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </a>
             <?php endif; ?>
         </div>
-        <button class="export-button" type="button" title="Coming soon">Export to Excell</button>
+        <a href="export_shifts.php?from=<?php echo urlencode($from); ?>&to=<?php echo urlencode($to); ?>&search=<?php echo urlencode($search); ?>">
+            <button class="export-button" type="button">Export to Excel</button>
+        </a>
     </div>
 
     <form method="GET" style="margin-top:15px;">
