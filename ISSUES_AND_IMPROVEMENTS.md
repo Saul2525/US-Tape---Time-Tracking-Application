@@ -37,6 +37,10 @@ Living reference doc. Update checkboxes as items get fixed. Grouped by priority:
 - [ ] Payroll reporting — not started; likely depends on the `PAY_RATES` table being added first.
 - [ ] UI styling — currently inline styles per-page; consider a shared stylesheet once the page count grows further.
 
+## Feature log
+
+- [x] **Manager shift notes (2026-09-15).** Added `WORK_TIMES.manager_note` (VARCHAR 255, nullable) — a free-text field managers can set per shift (e.g. "late", "left early") from `employee_shifts.php`, right next to the Edited/Action columns. Flows into the audit log (old/new note captured on every edit) and into the CSV export as a new "Note" column. Added to `db.sql` at the same time as the live DB, specifically to avoid repeating the `password`-column schema drift noted above — **if this app is ever deployed anywhere besides this machine, that column needs to be added there too** (`ALTER TABLE WORK_TIMES ADD COLUMN manager_note VARCHAR(255) NULL AFTER is_edited;`).
+
 ## Notes
 
 - Repo has a `.git` folder inside `US-Tape---Time-Tracking-Application/`, not at the workspace root — keep that in mind when running git commands from the top-level folder.

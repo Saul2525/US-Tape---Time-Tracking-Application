@@ -44,6 +44,7 @@ CREATE TABLE WORK_TIMES (
     clock_out_ip VARCHAR(50),
     approved TINYINT DEFAULT 0,
     is_edited TINYINT DEFAULT 0,
+    manager_note VARCHAR(255) NULL,
     FOREIGN KEY (employee_id) REFERENCES EMPLOYEES(employee_id),
     INDEX (employee_id, clock_in_time)
 );
