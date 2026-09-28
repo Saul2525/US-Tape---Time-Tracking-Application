@@ -33,7 +33,7 @@ $toBoundary = $toDate . ' 23:59:59';
 
 // Get work times
 $stmt = $pdo->prepare("
-    SELECT work_time_id, clock_in_time, clock_out_time, approved, is_edited
+    SELECT work_time_id, clock_in_time, clock_out_time, approved, is_edited, manager_note
     FROM WORK_TIMES
     WHERE employee_id = ?
     AND clock_in_time BETWEEN ? AND ?
@@ -169,6 +169,14 @@ $totalHours = round($totalMinutes / 60, 2);
             font-size: 12px;
             color: #6b7280;
         }
+        .note-input {
+            width: 160px;
+            padding: 10px 12px;
+            font-size: 15px;
+            border: 1px solid #cfd5df;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+        }
         .approved-cell input[type=checkbox] {
             width: 20px;
             height: 20px;
@@ -263,6 +271,7 @@ $totalHours = round($totalMinutes / 60, 2);
                 <th>Clock Out</th>
                 <th>Approved</th>
                 <th>Edited</th>
+                <th>Note</th>
                 <th>Action</th>
             </tr>
             <?php foreach ($shifts as $shift): ?>
@@ -300,6 +309,16 @@ $totalHours = round($totalMinutes / 60, 2);
                     <?php else: ?>
                         <span class="status-pill status-original">Original</span>
                     <?php endif; ?>
+                </td>
+                <td>
+                    <input
+                        class="note-input"
+                        type="text"
+                        name="note[<?php echo $shift['work_time_id']; ?>]"
+                        value="<?php echo htmlspecialchars($shift['manager_note'] ?? ''); ?>"
+                        maxlength="255"
+                        placeholder="e.g. late, left early"
+                    >
                 </td>
                 <td><button class="save-button" type="submit" name="save_id" value="<?php echo $shift['work_time_id']; ?>">Save Changes</button></td>
             </tr>
