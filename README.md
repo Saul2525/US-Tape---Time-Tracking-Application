@@ -11,6 +11,7 @@ A lightweight, intranet-only employee time clock built with plain PHP and MySQL/
 | Document | What it covers |
 |---|---|
 | **README.md** (this file) | What the app does, how the code is laid out, how to set it up and run it |
+| [docs/User_Guide_and_FAQ.pdf](docs/User_Guide_and_FAQ.pdf) | Step-by-step instructions with screenshots for every feature (employees, managers, admins), FAQ, and every error message explained |
 | [docs/XAMPP_Guide.pdf](docs/XAMPP_Guide.pdf) | What XAMPP is, why it is the recommended way to host this app, install, deployment, hardening, backups and troubleshooting |
 | [docs/Git_Version_Control_Guide.pdf](docs/Git_Version_Control_Guide.pdf) | What Git and version control are, how this repository is organized (branches, history, CI), and the day-to-day workflow for the next team |
 | [ISSUES_AND_IMPROVEMENTS.md](ISSUES_AND_IMPROVEMENTS.md) | Living list of known bugs, security gaps and planned work, grouped by priority |
@@ -27,8 +28,8 @@ A lightweight, intranet-only employee time clock built with plain PHP and MySQL/
 **Managers (email + password login)**
 - Manager dashboard listing active employees, with name search.
 - Per-employee shift view with a date-range filter and total hours for the range.
-- Edit clock-in/clock-out times and approve shifts. Every edit marks the shift as `Edited` and writes a before/after record to `AUDIT_LOG`.
-- **Export to Excel**: downloads a CSV (opens in Excel) of the shifts matching the current filters, either for all employees or a single employee.
+- Edit clock-in/clock-out times, approve shifts, and add a **manager note** per shift (e.g. "late", "left early", up to 255 characters). Every save marks the shift as `Edited` and writes a before/after record (times, approval and note) to `AUDIT_LOG`.
+- **Export to Excel**: downloads a CSV (opens in Excel) for one employee, for the whole filtered list, or for **specific employees ticked on the dashboard**. Ticks are remembered in the browser (`localStorage`) across searches until **Clear Selection** is pressed. Each employee's rows are followed by a **Total Hours** line (completed shifts only), and the file includes the Note column.
 
 **Admins (managers with the `can_manage_users` permission)**
 - Create employees and managers. PINs are auto-generated and unique, or can be set manually.
@@ -113,12 +114,12 @@ Four tables (`db.sql`):
 
 - **ROLES**: role name + permission flags (seeded with Employee / Manager / Admin).
 - **EMPLOYEES**: `employee_id`, `first_name`, `last_name`, `email` (unique), `pin`, `role_id` → ROLES, `is_active`, `created_at`.
-- **WORK_TIMES**: one row per shift. `clock_in_time`, `clock_out_time` (NULL while the shift is open), `clock_in/out_lat/lng`, `clock_in/out_ip`, `approved`, `is_edited`.
+- **WORK_TIMES**: one row per shift. `clock_in_time`, `clock_out_time` (NULL while the shift is open), `clock_in/out_lat/lng`, `clock_in/out_ip`, `approved`, `is_edited`, `manager_note` (added 2026-09-15).
 - **AUDIT_LOG**: one row per manager edit. `work_time_id`, `employee_id`, `changed_by`, `old_values` / `new_values` (JSON), `change_reason`, `action_timestamp`.
 
-### ⚠️ `db.sql` is behind the working database
+### ⚠️ Database migrations
 
-The development database was changed by hand and `db.sql` was never updated. A database built only from `db.sql` **cannot log in any manager**, because `manager_login.php` and `admin.php` need a `password` column. After importing `db.sql`, run:
+**1. `db.sql` is still missing the `password` column.** The development database was changed by hand and `db.sql` was never updated. A database built only from `db.sql` **cannot log in any manager**, because `manager_login.php` needs a `password` column. After importing `db.sql`, run:
 
 ```sql
 USE timeclock;
@@ -128,6 +129,14 @@ ALTER TABLE EMPLOYEES ADD UNIQUE (pin);
 ```
 
 Folding these changes into `db.sql` is tracked in ISSUES_AND_IMPROVEMENTS.md.
+
+**2. Databases created before 2026-09-15 need the `manager_note` column.** `db.sql` already includes it, so fresh installs are fine. Any existing database must add it, or View Shifts, Save Changes and Export all fail with `Unknown column 'manager_note'`:
+
+```sql
+ALTER TABLE WORK_TIMES ADD COLUMN manager_note VARCHAR(255) NULL AFTER is_edited;
+```
+
+(Applied to the original dev Mac's database on 2026-09-28.)
 
 The ERD image shows a *future* schema (`PAY_RATES`, approval and edit metadata columns, notes). Those tables and columns do not exist yet.
 
@@ -200,15 +209,17 @@ Log in at `/manager_login.php` with that email and password, open **Employee Man
 
 ### Local sample data
 
-The original dev database has three test employees with the kiosk PINs `21850`, `09924` and `95425`. These exist only in that local database, not in `db.sql`. Never reuse them on a real deployment.
+As of 2026-09-28 the original dev database contains a single manager account ("Gabriel Admin") and its test shifts. The three sample kiosk PINs listed in earlier versions of this README (`21850`, `09924`, `95425`) no longer exist there, but they remain in Git history, so never assign them to real employees. The screenshots in the User Guide were taken against a separate, fictional demo dataset.
 
 ---
 
 ## Using the app
 
+Full walkthrough with screenshots: **[docs/User_Guide_and_FAQ.pdf](docs/User_Guide_and_FAQ.pdf)**. In short:
+
 1. **Employee:** open the kiosk page, type your PIN, press Submit. You'll see "Clocked IN" or "Clocked OUT", then the page returns to the keypad after 3 seconds.
-2. **Manager:** click **Manager Sign In**, log in, pick an employee → **View Shifts**. Set a date range, adjust times in `YYYY-MM-DD HH:MM` format, tick **Approved**, then click **Save Changes** on that row. Each row saves on its own.
-3. **Export:** **Export to Excel** on either page downloads `shifts_<from>_to_<to>.csv` with the filters that page is showing. Columns: Employee, Email, Clock In, Clock Out, Hours, Approved, Edited.
+2. **Manager:** click **Manager Sign In**, log in, pick an employee → **View Shifts**. Set a date range, adjust times in `YYYY-MM-DD HH:MM` format, tick **Approved**, type a **Note** if needed, then click **Save Changes** on that row. Only the clicked row is saved.
+3. **Export:** on the dashboard, set From/To and click **Filter**. Then either tick specific employees or leave everyone unticked, and click **Export Selected to Excel**. On an employee's shift page, **Export to Excel** exports just that person. The file is `shifts_<from>_to_<to>.csv` with columns Employee, Email, Clock In, Clock Out, Hours, Approved, Edited, Note, plus a Total Hours line per employee.
 4. **Admin:** **Employee Management** on the dashboard (visible to admins only).
 5. **Forgotten clock-outs:** `php cron_anomaly.php`. Schedule it with Windows Task Scheduler or cron once it can send alerts.
 
@@ -221,14 +232,17 @@ The full, prioritized list is in [ISSUES_AND_IMPROVEMENTS.md](ISSUES_AND_IMPROVE
 - **Security:** plain-text manager passwords and PINs; no PIN rate-limiting; `update_shift.php` does not check permissions; the legacy pages have no access control; no CSRF tokens.
 - **Times are stored and shown in UTC.** Punches use `UTC_TIMESTAMP()`, but the pages show the raw value and the date filters use server-local dates. On Eastern time, displayed times run 4–5 hours ahead, and shifts near midnight can fall in the wrong day's filter.
 - **Location is never captured.** The `*_lat` / `*_lng` columns exist and `clock_handler.php` accepts them, but `index.php` does not send them, so they are always NULL.
-- **No server-side validation of edited times.** At least one negative-hours shift already exists in dev data.
+- **No server-side validation of edited times.** At least one negative-hours shift already exists in dev data. Invalid text in a time field crashes the page.
+- **Saving a shift that is still open crashes** (`Incorrect datetime value: ''`), so in-progress shifts can't be approved or noted.
+- **Only the clicked row is saved** on the shift editor. Edits typed into other rows are silently discarded.
+- **No sign-out button.** Sessions last until the browser closes or ~24 minutes idle.
 - **Schema drift** between `db.sql` and the working database (see above).
 
 ---
 
 ## Testing and CI
 
-Automated tests live on the **`ci-testing`** branch and have not been merged into `main` yet:
+Automated tests live on the **`ci-testing`** branch and have not been merged into `main` yet. As of 2026-09-28, `ci-testing` is also behind `main` (it lacks the Sep 15 notes/selection feature and the handoff docs), so merge `main` into it or open the PR from `ci-testing` and resolve there:
 
 - `composer.json` / `phpunit.xml`: PHPUnit 13 (dev-only dependency; `vendor/` is gitignored).
 - `tests/ClockHandlerTest.php`, `tests/CreateUserTest.php`, `test_helpers/BaseWebTest.php`: HTTP-level tests that POST to a running server with cURL.
