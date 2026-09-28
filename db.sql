@@ -1,5 +1,3 @@
-USE timeclock;
-
 -- ROLES
 CREATE TABLE ROLES (
     role_id BIGINT PRIMARY KEY AUTO_INCREMENT,

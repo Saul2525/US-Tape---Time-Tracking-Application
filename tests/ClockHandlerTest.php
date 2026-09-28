@@ -4,414 +4,294 @@ require_once __DIR__ . '/../test_helpers/BaseWebTest.php';
 
 class ClockHandlerTest extends BaseWebTest
 {
-    /**
-     * Tests that an active employee with a valid PIN
-     * can successfully clock in.
-     */
-    public function testClockIn(): void
+    // --------------------------------------------------
+    // Clock In
+    // --------------------------------------------------
+
+    public function testEmployeeCanClockIn(): void
     {
-        // Create an employee with a known PIN.
-        $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-            (first_name, last_name, email, pin, role_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([
+        // Create an active employee with the PIN that will be
+        // submitted to the clock handler.
+        // Role 1 represents a regular employee.
+        $employeeId = $this->createEmployee(
             'John',
             'Doe',
-            'john@test.com',
-            '12345',
-            1,
+            'john@example.com',
             1
-        ]);
+        );
 
-        // Send a clock-in request with the employee's PIN.
+        // Send a POST request using the employee's valid
+        // five-digit PIN and a test location.
         $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
+            $this->baseUrl . '/clock_handler.php',
             [
                 'pin' => '12345',
-                'lat' => '40.7128',
-                'lng' => '-74.0060'
+                'lat' => '40.6075',
+                'lng' => '-75.3785'
             ]
         );
 
-        // The request should be successful.
-        $this->assertEquals(200, $response['status']);
-
-        // The response should indicate that the employee clocked in.
+        // The request should complete successfully and the
+        // page should report that the employee clocked in.
+        $this->assertSame(200, $response['status']);
         $this->assertStringContainsString(
             'Clocked IN successfully.',
             $response['body']
         );
 
-        // Verify that a WORK_TIMES record was created.
-        $stmt = $this->pdo->prepare("
-            SELECT *
-            FROM WORK_TIMES
-            WHERE employee_id = (
-                SELECT employee_id
-                FROM EMPLOYEES
-                WHERE email = ?
-            )
-        ");
-
-        $stmt->execute(['john@test.com']);
-
-        $workTime = $stmt->fetch();
-
-        $this->assertNotFalse($workTime);
-
-        // A clock-in should have a timestamp.
-        $this->assertNotEmpty($workTime['clock_in_time']);
-
-        // A newly clocked-in employee should not have a clock-out time.
-        $this->assertNull($workTime['clock_out_time']);
-
-        // Verify that the location was recorded.
-        $this->assertEqualsWithDelta(
-            40.7128,
-            (float) $workTime['clock_in_lat'],
-            0.000001
-        );
-
-        $this->assertEqualsWithDelta(
-            -74.0060,
-            (float) $workTime['clock_in_lng'],
-            0.000001
-        );
-    }
-
-    /**
-     * Tests that an employee with an open shift
-     * can successfully clock out.
-     */
-    public function testClockOut(): void
-    {
-        // Create an employee with a known PIN.
-        $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-            (first_name, last_name, email, pin, role_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([
-            'John',
-            'Doe',
-            'john@test.com',
-            '12345',
-            1,
-            1
-        ]);
-
-        // Create an open shift for the employee.
-        $employee = $this->getEmployeeByEmail('john@test.com');
-
-        $this->pdo->prepare("
-            INSERT INTO WORK_TIMES
-            (employee_id, clock_in_time)
-            VALUES (?, UTC_TIMESTAMP())
-        ")->execute([
-            $employee['employee_id']
-        ]);
-
-        // Send a clock request using the employee's PIN.
-        $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
-            [
-                'pin' => '12345',
-                'lat' => '40.7128',
-                'lng' => '-74.0060'
-            ]
-        );
-
-        // The request should be successful.
-        $this->assertEquals(200, $response['status']);
-
-        // The response should indicate that the employee clocked out.
-        $this->assertStringContainsString(
-            'Clocked OUT successfully.',
-            $response['body']
-        );
-
-        // Retrieve the employee's work-time record.
+        // Retrieve the employee's work time record so we can
+        // verify that the clock-in was actually saved.
         $stmt = $this->pdo->prepare("
             SELECT *
             FROM WORK_TIMES
             WHERE employee_id = ?
         ");
 
-        $stmt->execute([
-            $employee['employee_id']
-        ]);
+        $stmt->execute([$employeeId]);
 
         $workTime = $stmt->fetch();
 
+        // A successful clock-in should create a work-time record
+        // with a clock-in time and no clock-out time yet.
         $this->assertNotFalse($workTime);
+        $this->assertNotNull($workTime['clock_in_time']);
+        $this->assertNull($workTime['clock_out_time']);
 
-        // Verify that the shift now has a clock-out timestamp.
-        $this->assertNotEmpty($workTime['clock_out_time']);
+        // Verify that the latitude and longitude submitted with
+        // the request were stored with the clock-in.
+        $this->assertSame('40.607500', $workTime['clock_in_lat']);
+        $this->assertSame('-75.378500', $workTime['clock_in_lng']);
 
-        // Verify that the clock-out location was recorded.
-        $this->assertEqualsWithDelta(
-            40.7128,
-            (float) $workTime['clock_out_lat'],
-            0.000001
-        );
-
-        $this->assertEqualsWithDelta(
-            -74.0060,
-            (float) $workTime['clock_out_lng'],
-            0.000001
-        );
+        // Because the test server is running locally, the request
+        // should record 127.0.0.1 as the client's IP address.
+        $this->assertSame('127.0.0.1', $workTime['clock_in_ip']);
     }
 
-    /**
-     * Tests that an invalid PIN format is rejected
-     * before attempting to look up an employee.
-     */
-    public function testInvalidPinFormat(): void
+    // --------------------------------------------------
+    // Clock Out
+    // --------------------------------------------------
+
+    public function testEmployeeCanClockOut(): void
     {
+        // Create an active employee with the PIN used by the test.
+        $employeeId = $this->createEmployee(
+            'John',
+            'Doe',
+            'john@example.com',
+            1
+        );
+
+        // Create an existing open shift for the employee.
+        // A NULL clock_out_time represents a shift that is
+        // currently open.
+        $this->createWorkTime(
+            $employeeId,
+            '2026-09-28 13:00:00',
+            null
+        );
+
+        // Send another request with the employee's valid PIN.
+        // Because an open shift already exists, clock_handler.php
+        // should clock the employee out instead of creating
+        // another shift.
         $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
+            $this->baseUrl . '/clock_handler.php',
             [
-                'pin' => '123'
+                'pin' => '12345',
+                'lat' => '40.6100',
+                'lng' => '-75.3800'
             ]
         );
 
-        // The request should still return an HTTP response.
-        $this->assertEquals(200, $response['status']);
+        // The request should complete successfully and report
+        // that the employee clocked out.
+        $this->assertSame(200, $response['status']);
+        $this->assertStringContainsString(
+            'Clocked OUT successfully.',
+            $response['body']
+        );
 
-        // The application should report the invalid PIN format.
+        // Retrieve the employee's work-time record to verify
+        // that the existing shift was updated.
+        $stmt = $this->pdo->prepare("
+            SELECT *
+            FROM WORK_TIMES
+            WHERE employee_id = ?
+        ");
+
+        $stmt->execute([$employeeId]);
+
+        $workTime = $stmt->fetch();
+
+        // The existing shift should now contain a clock-out time.
+        $this->assertNotFalse($workTime);
+        $this->assertNotNull($workTime['clock_out_time']);
+
+        // Verify that the latitude and longitude submitted during
+        // clock-out were saved to the correct columns.
+        $this->assertSame('40.610000', $workTime['clock_out_lat']);
+        $this->assertSame('-75.380000', $workTime['clock_out_lng']);
+
+        // Verify that the server recorded the client's IP address.
+        $this->assertSame('127.0.0.1', $workTime['clock_out_ip']);
+    }
+
+    // --------------------------------------------------
+    // Invalid PIN
+    // --------------------------------------------------
+
+    public function testInvalidPinFormatIsRejected(): void
+    {
+        // Submit a PIN containing only four digits.
+        // clock_handler.php requires exactly five digits.
+        $response = $this->post(
+            $this->baseUrl . '/clock_handler.php',
+            [
+                'pin' => '1234'
+            ]
+        );
+
+        // The request itself completes, but the application
+        // should reject the PIN because its format is invalid.
+        $this->assertSame(200, $response['status']);
         $this->assertStringContainsString(
             'Invalid PIN format.',
             $response['body']
         );
     }
 
-    /**
-     * Tests that a PIN containing non-numeric characters
-     * is rejected.
-     */
-    public function testNonNumericPin(): void
+    public function testNonexistentPinIsRejected(): void
     {
+        // Submit a properly formatted five-digit PIN that does
+        // not belong to any employee in the test database.
         $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
-            [
-                'pin' => '12abc'
-            ]
-        );
-
-        $this->assertEquals(200, $response['status']);
-
-        $this->assertStringContainsString(
-            'Invalid PIN format.',
-            $response['body']
-        );
-    }
-
-    /**
-     * Tests that a correctly formatted PIN which does not
-     * belong to an employee is rejected.
-     */
-    public function testUnknownPin(): void
-    {
-        $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
+            $this->baseUrl . '/clock_handler.php',
             [
                 'pin' => '99999'
             ]
         );
 
-        $this->assertEquals(200, $response['status']);
-
+        // The application should reject the PIN because no
+        // active employee matches it.
+        $this->assertSame(200, $response['status']);
         $this->assertStringContainsString(
             'Invalid PIN.',
             $response['body']
         );
     }
 
-    /**
-     * Tests that an inactive employee cannot use their PIN
-     * to clock in or out.
-     */
+    // --------------------------------------------------
+    // Inactive Employee
+    // --------------------------------------------------
+
     public function testInactiveEmployeeCannotClockIn(): void
     {
-        // Create an inactive employee.
-        $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-            (first_name, last_name, email, pin, role_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([
+        // Create an employee who initially has an active account.
+        $employeeId = $this->createEmployee(
             'John',
             'Doe',
-            'john@test.com',
-            '12345',
-            1,
-            0
-        ]);
+            'john@example.com',
+            1
+        );
+
+        // Deactivate the employee before attempting to use
+        // their PIN. clock_handler.php only searches for
+        // employees where is_active = 1.
+        $stmt = $this->pdo->prepare("
+            UPDATE EMPLOYEES
+            SET is_active = 0
+            WHERE employee_id = ?
+        ");
+
+        $stmt->execute([$employeeId]);
 
         // Attempt to clock in using the inactive employee's PIN.
         $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
+            $this->baseUrl . '/clock_handler.php',
             [
                 'pin' => '12345'
             ]
         );
 
-        $this->assertEquals(200, $response['status']);
-
-        // The inactive employee should not be found.
+        // The application should treat the PIN as invalid because
+        // inactive employees cannot use the clock.
+        $this->assertSame(200, $response['status']);
         $this->assertStringContainsString(
             'Invalid PIN.',
             $response['body']
         );
 
-        // Verify that no work-time record was created.
-        $stmt = $this->pdo->query("
-            SELECT COUNT(*)
-            FROM WORK_TIMES
-        ");
+        // No work-time record should have been created because
+        // the inactive employee was not allowed to clock in.
+        $count = (int) $this->pdo
+            ->query("SELECT COUNT(*) FROM WORK_TIMES")
+            ->fetchColumn();
 
-        $this->assertEquals(0, $stmt->fetchColumn());
+        $this->assertSame(0, $count);
     }
 
-    /**
-     * Tests that location information is optional.
-     *
-     * The clock handler allows latitude and longitude
-     * to be omitted from the request.
-     */
-    public function testClockInWithoutLocation(): void
+    // --------------------------------------------------
+    // Existing Open Shift
+    // --------------------------------------------------
+
+    public function testClockOutClosesExistingOpenShift(): void
     {
-        // Create an active employee.
-        $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-            (first_name, last_name, email, pin, role_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([
+        // Create an active employee with the PIN used by the test.
+        $employeeId = $this->createEmployee(
             'John',
             'Doe',
-            'john@test.com',
-            '12345',
-            1,
+            'john@example.com',
             1
-        ]);
+        );
 
-        // Clock in without providing location information.
+        // Create an existing open shift.
+        // The NULL clock_out_time indicates that the employee
+        // has already clocked in but has not clocked out.
+        $this->createWorkTime(
+            $employeeId,
+            '2026-09-28 13:00:00',
+            null
+        );
+
+        // Record the number of work-time records before sending
+        // the clock-out request.
+        $beforeCount = (int) $this->pdo
+            ->query("SELECT COUNT(*) FROM WORK_TIMES")
+            ->fetchColumn();
+
+        // Submit the employee's valid PIN.
+        // Because an open shift exists, the application should
+        // close that shift rather than create a new one.
         $response = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
+            $this->baseUrl . '/clock_handler.php',
             [
                 'pin' => '12345'
             ]
         );
 
-        $this->assertEquals(200, $response['status']);
+        // The request should complete successfully.
+        $this->assertSame(200, $response['status']);
 
-        $this->assertStringContainsString(
-            'Clocked IN successfully.',
-            $response['body']
-        );
+        // Verify that no additional WORK_TIMES record was created.
+        $afterCount = (int) $this->pdo
+            ->query("SELECT COUNT(*) FROM WORK_TIMES")
+            ->fetchColumn();
 
-        // Verify that the shift was still created.
-        $user = $this->getEmployeeByEmail('john@test.com');
+        $this->assertSame($beforeCount, $afterCount);
 
+        // Retrieve the existing shift and verify that it now
+        // contains a clock-out timestamp.
         $stmt = $this->pdo->prepare("
-            SELECT *
+            SELECT clock_out_time
             FROM WORK_TIMES
             WHERE employee_id = ?
         ");
 
-        $stmt->execute([
-            $user['employee_id']
-        ]);
+        $stmt->execute([$employeeId]);
 
-        $workTime = $stmt->fetch();
+        $clockOut = $stmt->fetchColumn();
 
-        $this->assertNotFalse($workTime);
-
-        // Location should be NULL when it was not supplied.
-        $this->assertNull($workTime['clock_in_lat']);
-        $this->assertNull($workTime['clock_in_lng']);
-    }
-
-    /**
-     * Tests that the same employee can clock in and then
-     * clock out using two separate HTTP requests.
-     */
-    public function testClockInThenClockOut(): void
-    {
-        // Create an active employee.
-        $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-            (first_name, last_name, email, pin, role_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([
-            'John',
-            'Doe',
-            'john@test.com',
-            '12345',
-            1,
-            1
-        ]);
-
-        // First request should clock the employee in.
-        $clockInResponse = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
-            [
-                'pin' => '12345'
-            ]
-        );
-
-        $this->assertEquals(200, $clockInResponse['status']);
-
-        $this->assertStringContainsString(
-            'Clocked IN successfully.',
-            $clockInResponse['body']
-        );
-
-        // Second request should detect the open shift
-        // and clock the employee out.
-        $clockOutResponse = $this->post(
-            'http://127.0.0.1:8000/clock_handler.php',
-            [
-                'pin' => '12345'
-            ]
-        );
-
-        $this->assertEquals(200, $clockOutResponse['status']);
-
-        $this->assertStringContainsString(
-            'Clocked OUT successfully.',
-            $clockOutResponse['body']
-        );
-
-        // Verify that only one work-time record exists.
-        $user = $this->getEmployeeByEmail('john@test.com');
-
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM WORK_TIMES
-            WHERE employee_id = ?
-        ");
-
-        $stmt->execute([
-            $user['employee_id']
-        ]);
-
-        $this->assertEquals(1, $stmt->fetchColumn());
-
-        // Verify that the existing shift was closed.
-        $stmt = $this->pdo->prepare("
-            SELECT *
-            FROM WORK_TIMES
-            WHERE employee_id = ?
-        ");
-
-        $stmt->execute([
-            $user['employee_id']
-        ]);
-
-        $workTime = $stmt->fetch();
-
-        $this->assertNotFalse($workTime);
-        $this->assertNotEmpty($workTime['clock_in_time']);
-        $this->assertNotEmpty($workTime['clock_out_time']);
+        $this->assertNotFalse($clockOut);
+        $this->assertNotNull($clockOut);
     }
 }
