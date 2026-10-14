@@ -20,12 +20,22 @@ class ClockHandlerTest extends BaseWebTest
             1
         );
 
+        // Retrieve the employee's PIN from the database so we can
+        // submit it in the clock_handler.php request.
+        $stmt = $this->pdo->prepare("
+            SELECT pin
+            FROM EMPLOYEES
+            WHERE employee_id = ?
+        ");
+        $stmt->execute([$employeeId]);
+        $pin = trim($stmt->fetchColumn());
+
         // Send a POST request using the employee's valid
         // five-digit PIN and a test location.
         $response = $this->post(
             $this->baseUrl . '/clock_handler.php',
             [
-                'pin' => '12345',
+                'pin' => $pin,
                 'lat' => '40.6075',
                 'lng' => '-75.3785'
             ]
@@ -81,6 +91,16 @@ class ClockHandlerTest extends BaseWebTest
             1
         );
 
+        // Retrieve the employee's PIN from the database so we can
+        // submit it in the clock_handler.php request.
+        $stmt = $this->pdo->prepare("
+            SELECT pin
+            FROM EMPLOYEES
+            WHERE employee_id = ?
+        ");
+        $stmt->execute([$employeeId]);
+        $pin = trim($stmt->fetchColumn());
+
         // Create an existing open shift for the employee.
         // A NULL clock_out_time represents a shift that is
         // currently open.
@@ -97,7 +117,7 @@ class ClockHandlerTest extends BaseWebTest
         $response = $this->post(
             $this->baseUrl . '/clock_handler.php',
             [
-                'pin' => '12345',
+                'pin' => $pin,
                 'lat' => '40.6100',
                 'lng' => '-75.3800'
             ]
@@ -194,6 +214,16 @@ class ClockHandlerTest extends BaseWebTest
             1
         );
 
+        // Retrieve the employee's PIN from the database so we can
+        // submit it in the clock_handler.php request.
+        $stmt = $this->pdo->prepare("
+            SELECT pin
+            FROM EMPLOYEES
+            WHERE employee_id = ?
+        ");
+        $stmt->execute([$employeeId]);
+        $pin = trim($stmt->fetchColumn());
+
         // Deactivate the employee before attempting to use
         // their PIN. clock_handler.php only searches for
         // employees where is_active = 1.
@@ -209,7 +239,7 @@ class ClockHandlerTest extends BaseWebTest
         $response = $this->post(
             $this->baseUrl . '/clock_handler.php',
             [
-                'pin' => '12345'
+                'pin' => $pin
             ]
         );
 
@@ -244,6 +274,16 @@ class ClockHandlerTest extends BaseWebTest
             1
         );
 
+        // Retrieve the employee's PIN from the database so we can
+        // submit it in the clock_handler.php request.
+        $stmt = $this->pdo->prepare("
+            SELECT pin
+            FROM EMPLOYEES
+            WHERE employee_id = ?
+        ");
+        $stmt->execute([$employeeId]);
+        $pin = trim($stmt->fetchColumn());
+
         // Create an existing open shift.
         // The NULL clock_out_time indicates that the employee
         // has already clocked in but has not clocked out.
@@ -265,7 +305,7 @@ class ClockHandlerTest extends BaseWebTest
         $response = $this->post(
             $this->baseUrl . '/clock_handler.php',
             [
-                'pin' => '12345'
+                'pin' => $pin
             ]
         );
 

@@ -7,10 +7,9 @@ if (!isset($_SESSION['role_id'])) {
 }
 
 $roleStmt = $pdo->prepare("
-    SELECT role_name, can_manage_users
+    SELECT TOP 1 role_name, can_manage_users
     FROM ROLES
     WHERE role_id = ?
-    LIMIT 1
 ");
 $roleStmt->execute([$_SESSION['role_id']]);
 $currentRole = $roleStmt->fetch(PDO::FETCH_ASSOC);
@@ -25,7 +24,7 @@ $errors = [];
 function generateUniquePin($pdo) {
     do {
         $pin = str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
-        $stmt = $pdo->prepare("SELECT employee_id FROM EMPLOYEES WHERE pin = ? LIMIT 1");
+        $stmt = $pdo->prepare("SELECT TOP 1 employee_id FROM EMPLOYEES WHERE pin = ?");
         $stmt->execute([$pin]);
         $exists = $stmt->fetch(PDO::FETCH_ASSOC);
     } while ($exists);
@@ -34,7 +33,14 @@ function generateUniquePin($pdo) {
 }
 
 function hasEmployeesPasswordColumn($pdo) {
-    $stmt = $pdo->query("SHOW COLUMNS FROM EMPLOYEES LIKE 'password'");
+    $stmt = $pdo->prepare("
+        SELECT 1
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'EMPLOYEES'
+        AND COLUMN_NAME = ?
+    ");
+
+    $stmt->execute(['password']);
     return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
@@ -59,13 +65,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = "Please provide a valid email address.";
         }
 
-        $roleCheck = $pdo->prepare("SELECT role_id FROM ROLES WHERE role_id = ? LIMIT 1");
+        $roleCheck = $pdo->prepare("SELECT TOP 1 role_id FROM ROLES WHERE role_id = ?");
         $roleCheck->execute([$roleId]);
         if (!$roleCheck->fetch(PDO::FETCH_ASSOC)) {
             $errors[] = "Selected role does not exist.";
         }
 
-        $employeeExistsStmt = $pdo->prepare("SELECT employee_id FROM EMPLOYEES WHERE email = ? LIMIT 1");
+        $employeeExistsStmt = $pdo->prepare("SELECT TOP 1 employee_id FROM EMPLOYEES WHERE email = ?");
         $employeeExistsStmt->execute([$email]);
         if ($employeeExistsStmt->fetch(PDO::FETCH_ASSOC)) {
             $errors[] = "An employee with this email already exists.";
@@ -76,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($manualPin !== '') {
-            $pinExistsStmt = $pdo->prepare("SELECT employee_id FROM EMPLOYEES WHERE pin = ? LIMIT 1");
+            $pinExistsStmt = $pdo->prepare("SELECT TOP 1 employee_id FROM EMPLOYEES WHERE pin = ?");
             $pinExistsStmt->execute([$manualPin]);
             if ($pinExistsStmt->fetch(PDO::FETCH_ASSOC)) {
                 $errors[] = "That PIN is already in use.";

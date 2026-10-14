@@ -43,10 +43,9 @@ class UpdateShiftTest extends BaseWebTest
         // Retrieve the work-time ID so the POST request can
         // identify which shift should be updated.
         $stmt = $this->pdo->prepare("
-            SELECT work_time_id
+            SELECT TOP 1 work_time_id
             FROM WORK_TIMES
             WHERE employee_id = ?
-            LIMIT 1
         ");
         $stmt->execute([$employeeId]);
 
@@ -103,12 +102,12 @@ class UpdateShiftTest extends BaseWebTest
         // Verify the new clock-in and clock-out times.
         $this->assertSame(
             '2026-09-28 08:30:00',
-            $workTime['clock_in_time']
+            date('Y-m-d H:i:s', strtotime($workTime['clock_in_time']))
         );
 
         $this->assertSame(
             '2026-09-28 17:30:00',
-            $workTime['clock_out_time']
+            date('Y-m-d H:i:s', strtotime($workTime['clock_out_time']))
         );
 
         // The manager checked the approval checkbox, so the
@@ -131,10 +130,9 @@ class UpdateShiftTest extends BaseWebTest
         // The update should also create an audit record so that
         // the original and updated values can be reviewed later.
         $stmt = $this->pdo->prepare("
-            SELECT *
+            SELECT TOP 1 *
             FROM AUDIT_LOG
             WHERE work_time_id = ?
-            LIMIT 1
         ");
         $stmt->execute([$workTimeId]);
 
@@ -176,12 +174,12 @@ class UpdateShiftTest extends BaseWebTest
         // The old values should match the original shift.
         $this->assertSame(
             '2026-09-28 09:00:00',
-            $oldValues['clock_in']
+            date('Y-m-d H:i:s', strtotime($oldValues['clock_in']))
         );
 
         $this->assertSame(
             '2026-09-28 17:00:00',
-            $oldValues['clock_out']
+            date('Y-m-d H:i:s', strtotime($oldValues['clock_out']))
         );
 
         $this->assertSame(
@@ -195,12 +193,12 @@ class UpdateShiftTest extends BaseWebTest
         // by the manager.
         $this->assertSame(
             '2026-09-28 08:30:00',
-            $newValues['clock_in']
+            date('Y-m-d H:i:s', strtotime($newValues['clock_in']))
         );
 
         $this->assertSame(
             '2026-09-28 17:30:00',
-            $newValues['clock_out']
+            date('Y-m-d H:i:s', strtotime($newValues['clock_out']))
         );
 
         $this->assertSame(
@@ -255,10 +253,9 @@ class UpdateShiftTest extends BaseWebTest
 
         // Retrieve the work-time ID needed by update_shift.php.
         $stmt = $this->pdo->prepare("
-            SELECT work_time_id
+            SELECT TOP 1 work_time_id
             FROM WORK_TIMES
             WHERE employee_id = ?
-            LIMIT 1
         ");
         $stmt->execute([$employeeId]);
 

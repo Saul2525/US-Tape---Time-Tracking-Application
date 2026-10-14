@@ -20,8 +20,8 @@ $employeeId = $employee['employee_id'];
 
 // Total completed hours (approved + pending)
 $stmt = $pdo->prepare("
-    SELECT 
-        SUM(TIMESTAMPDIFF(SECOND, clock_in_time, clock_out_time)) as total_seconds
+    SELECT
+        SUM(DATEDIFF(SECOND, clock_in_time, clock_out_time)) AS total_seconds
     FROM WORK_TIMES
     WHERE employee_id = ?
     AND clock_out_time IS NOT NULL
@@ -34,8 +34,8 @@ $totalHoursAll = round($totalSecondsAll / 3600, 2);
 
 // Calculate total approved hours
 $stmt = $pdo->prepare("
-    SELECT 
-        SUM(TIMESTAMPDIFF(SECOND, clock_in_time, clock_out_time)) as total_seconds
+    SELECT
+        SUM(DATEDIFF(SECOND, clock_in_time, clock_out_time)) AS total_seconds
     FROM WORK_TIMES
     WHERE employee_id = ?
     AND approved = 1

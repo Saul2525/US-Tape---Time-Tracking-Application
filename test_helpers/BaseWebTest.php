@@ -6,6 +6,7 @@ abstract class BaseWebTest extends TestCase
 {
     protected PDO $pdo;
     protected string $baseUrl = 'http://127.0.0.1:8001';
+    private static int $nextTestPin = 10000;
 
     // --------------------------------------------------
     // Database Setup
@@ -24,11 +25,10 @@ abstract class BaseWebTest extends TestCase
         }
 
         $this->pdo = new PDO(
-            "mysql:host=" . getenv('DB_HOST') .
-                ";port=3306;dbname=" . $dbName .
-                ";charset=utf8mb4",
-            getenv('DB_USER'),
-            getenv('DB_PASS')
+            "sqlsrv:Server=" . getenv('DB_HOST') .
+                ";Database=" . $dbName,
+            null,
+            null
         );
 
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -51,20 +51,21 @@ abstract class BaseWebTest extends TestCase
         int $roleId
     ): int {
         $stmt = $this->pdo->prepare("
-            INSERT INTO EMPLOYEES
-                (first_name, last_name, email, pin, role_id)
-            VALUES (?, ?, ?, ?, ?)
-        ");
+        INSERT INTO EMPLOYEES
+            (first_name, last_name, email, pin, role_id)
+        OUTPUT INSERTED.employee_id
+        VALUES (?, ?, ?, ?, ?)
+    ");
 
         $stmt->execute([
             $firstName,
             $lastName,
             $email,
-            '12345',
+            (string) self::$nextTestPin++,
             $roleId
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        return (int) $stmt->fetchColumn();
     }
 
     protected function createWorkTime(
@@ -194,6 +195,7 @@ abstract class BaseWebTest extends TestCase
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => http_build_query($postData),
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => true,
         ];
 
         if ($sessionId !== null) {
@@ -212,10 +214,12 @@ abstract class BaseWebTest extends TestCase
         }
 
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 
         return [
             'status' => $statusCode,
-            'body' => $response
+            'headers' => substr($response, 0, $headerSize),
+            'body' => substr($response, $headerSize),
         ];
     }
 

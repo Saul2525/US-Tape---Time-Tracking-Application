@@ -4,13 +4,13 @@ require 'config.php';
 $employeeId = $_GET['employee_id'];
 
 $stmt = $pdo->prepare("
-    SELECT 
-        SUM(TIMESTAMPDIFF(SECOND, clock_in_time, 
-            IFNULL(clock_out_time, UTC_TIMESTAMP())
-        )) / 3600 AS total_hours
+    SELECT
+        SUM(DATEDIFF(SECOND, clock_in_time,
+            COALESCE(clock_out_time, SYSUTCDATETIME())
+        )) / 3600.0 AS total_hours
     FROM WORK_TIMES
     WHERE employee_id = ?
-    AND clock_in_time >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
+    AND clock_in_time >= DATEADD(DAY, -7, SYSUTCDATETIME())
 ");
 
 $stmt->execute([$employeeId]);

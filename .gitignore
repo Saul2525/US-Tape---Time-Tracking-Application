@@ -3,3 +3,4 @@ config.php
 /vendor/
 .phpunit.result.cache
 phpunit.xml
+pie.phar

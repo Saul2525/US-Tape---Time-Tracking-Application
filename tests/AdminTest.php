@@ -75,6 +75,7 @@ class AdminTest extends BaseWebTest
                 'email' => 'john@example.com',
                 'role_id' => 1,
                 'pin' => '54321',
+                'password' => 'TestPassword123!'
             ],
             $sessionId
         );
@@ -114,6 +115,7 @@ class AdminTest extends BaseWebTest
                 'email' => 'alice@example.com',
                 'role_id' => 1,
                 'pin' => '',
+                'password' => 'TestPassword123!',
             ],
             $sessionId
         );
