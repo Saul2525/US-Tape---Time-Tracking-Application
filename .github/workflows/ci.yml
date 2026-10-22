@@ -8,75 +8,115 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
-      DB_HOST: 127.0.0.1
+      DB_HOST: 127.0.0.1,1433
       DB_NAME: timeclock_test
-      DB_USER: root
-      DB_PASS: ""
+      DB_USER: sa
+      DB_PASS: Ci_TestPassw0rd!2026
 
     services:
-      mysql:
-        image: mysql:8.0
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
         env:
-          MYSQL_ROOT_PASSWORD: ""
-          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-          MYSQL_DATABASE: timeclock_test
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Ci_TestPassw0rd!2026
         ports:
-          - 3306:3306
+          - 1433:1433
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install SQL Server Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl gnupg apt-transport-https
+
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo gpg --dearmor \
+              -o /usr/share/keyrings/microsoft-prod.gpg
+
+          curl -sSL \
+            https://packages.microsoft.com/config/ubuntu/24.04/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+
+          sudo apt-get update
+
+          sudo ACCEPT_EULA=Y apt-get install -y \
+            msodbcsql18 mssql-tools18 unixodbc-dev
+
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.5"
-          extensions: pdo, pdo_mysql, curl, zip
+          extensions: pdo, pdo_sqlsrv, curl, zip
           coverage: none
 
       - name: Install Composer Dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Wait for MySQL
+      - name: Wait for SQL Server
         run: |
-          for i in {1..30}; do
-            if mysqladmin ping \
-              -h "$DB_HOST" \
-              -P 3306 \
-              -u "$DB_USER" \
-              --silent; then
-              echo "MySQL is ready."
+          for i in {1..60}; do
+            if sqlcmd \
+              -S "$DB_HOST" \
+              -U "$DB_USER" \
+              -P "$DB_PASS" \
+              -C \
+              -Q "SELECT 1" \
+              > /dev/null 2>&1; then
+              echo "SQL Server is ready."
               exit 0
             fi
 
-            echo "Waiting for MySQL..."
+            echo "Waiting for SQL Server..."
             sleep 2
           done
 
-          echo "MySQL failed to start."
+          echo "SQL Server failed to start."
           exit 1
 
-      - name: Initialize Database
-        run: mysql -h "$DB_HOST" -P 3306 -u "$DB_USER" "$DB_NAME" < db.sql
+      - name: Initialize Test Database
+        run: |
+          sqlcmd \
+            -S "$DB_HOST" \
+            -U "$DB_USER" \
+            -P "$DB_PASS" \
+            -C \
+            -b \
+            -Q "IF DB_ID(N'timeclock_test') IS NULL CREATE DATABASE [timeclock_test];"
+
+          sqlcmd \
+            -S "$DB_HOST" \
+            -U "$DB_USER" \
+            -P "$DB_PASS" \
+            -C \
+            -d "$DB_NAME" \
+            -i db.sql \
+            -b
 
       - name: Create config.php
         run: |
           cat > config.php <<'PHP'
           <?php
 
-          $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+          $dbHost = getenv('DB_HOST') ?: 'localhost\\SQLEXPRESS';
           $dbName = getenv('DB_NAME') ?: 'timeclock';
-          $dbUser = getenv('DB_USER') ?: 'root';
-          $dbPass = getenv('DB_PASS') ?: '';
+          $dbUser = getenv('DB_USER');
+          $dbPass = getenv('DB_PASS');
 
-          $pdo = new PDO(
-              "mysql:host={$dbHost};port=3306;dbname={$dbName};charset=utf8mb4",
-              $dbUser,
-              $dbPass
-          );
+          $dsn = "sqlsrv:Server={$dbHost};Database={$dbName};TrustServerCertificate=1";
+
+          if ($dbUser !== false && $dbUser !== '') {
+              $pdo = new PDO($dsn, $dbUser, $dbPass ?: '');
+          } else {
+              // Use Windows Authentication for local development.
+              $pdo = new PDO($dsn);
+          }
 
           $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
           PHP
@@ -87,7 +127,8 @@ jobs:
       - name: Wait for PHP Server
         run: |
           for i in {1..10}; do
-            if curl --silent --fail http://127.0.0.1:8001/index.php > /dev/null; then
+            if curl --silent --fail \
+              http://127.0.0.1:8001/index.php > /dev/null; then
               echo "PHP server is ready."
               exit 0
             fi

@@ -23,9 +23,7 @@ The current testing setup uses:
 * **Composer** for installing the PHPUnit testing dependency
 * A local PHP server running the application
 * **cURL** for sending HTTP requests to the application
-* **MySQL** for the current test database
-
-Since our meeting on 9/21/26, we're in the process of transitioning to **Microsoft SQL Server**.
+* **Microsoft SQL Server** for the application and test database
 
 The tests are designed to run against a test database rather than the application's normal production database.
 
@@ -43,6 +41,7 @@ The current test files are:
 * `tests/EmployeeShiftsTest.php` — Tests displaying employee shifts, date filtering, total-hour calculations, open shifts, and date validation.
 * `tests/ExportShiftsTest.php` — Tests export access, employee and date filtering, employee totals, and open shifts.
 * `tests/ManagerDashboardTest.php` — Tests dashboard access, employee display, search filtering, and role-specific controls.
+* `tests/ManagerLoginTest.php` - Tests administrator and manager login, invalid credentials, inactive accounts, and role restrictions.
 * `tests/UpdateShiftTest.php` — Tests editing shifts, approval changes, manager notes, and audit-log entries.
 * `test_helpers/BaseWebTest.php` — Provides shared functionality used by the web-based tests.
 
@@ -62,7 +61,7 @@ The tests share common functionality through `test_helpers/BaseWebTest.php`. Thi
 
 ### Database Setup
 
-Before each test runs, `BaseWebTest` connects to the MySQL test database using the database settings provided through the test configuration and environment.
+Before each test runs, `BaseWebTest` connects to the Microsoft SQL Server test database using the database settings provided through the test configuration and environment.
 
 For safety, the tests require the database name to be `timeclock_test`. If a different database name is configured, the test fails instead of running.
 
@@ -125,20 +124,24 @@ This installs PHPUnit and its dependencies defined in `composer.json`.
 
 The project includes `phpunit.xml.dist` as the default PHPUnit configuration.
 
-The file defines the database settings used by the automated tests:
+The file provides the default database settings used by the automated tests:
 
 * `DB_NAME` — `timeclock_test`
-* `DB_USER` — `root`
-* `DB_PASS` — Empty by default
-* `DB_HOST` — `127.0.0.1`
+* `DB_USER` — The SQL Server login when SQL authentication is used.
+* `DB_PASS` — The corresponding SQL Server password when SQL authentication is used.
+* `DB_HOST` — The SQL Server host and instance or port.
+
+For local development, the application uses Windows Authentication with the local SQL Server instance by default. The `config.php` file provides the default connection settings, while the composer `test-server` script sets `DB_NAME` to `timeclock_test` when starting the test server.
+
+GitHub Actions uses SQL Server authentication with credentials provided through environment variables. The workflow generates a `config.php` file during the CI run to support this connection. These settings allow local development and CI to use different SQL Server connection details while keeping the tests isolated from the normal application database.
 
 A separate `phpunit.xml` file is not required for the standard testing setup. If a different local configuration is needed, `phpunit.xml.dist` can be copied to `phpunit.xml` and modified for that environment.
 
 ### Test Database
 
-The automated tests use a separate MySQL database named `timeclock_test`.
+The automated tests use a separate Microsoft SQL Server database named timeclock_test.
 
-The test database must already be configured with the application's database schema before the tests are run.
+The test database must already be configured with the SQL Server-compatible application schema before the tests are run.
 
 For safety, `BaseWebTest` checks that `DB_NAME` is exactly `timeclock_test`. If a different database name is detected, the tests stop before modifying any data.
 
@@ -206,6 +209,7 @@ vendor/bin/phpunit tests/CronAnomalyTest.php
 vendor/bin/phpunit tests/EmployeeShiftsTest.php
 vendor/bin/phpunit tests/ExportShiftsTest.php
 vendor/bin/phpunit tests/ManagerDashboardTest.php
+vendor/bin/phpunit tests/ManagerLoginTest.php
 vendor/bin/phpunit tests/UpdateShiftTest.php
 ```
 
@@ -301,7 +305,7 @@ The workflow currently runs when:
 * Code is pushed to the `ci-testing` branch.
 * A pull request is opened or updated for the `main` branch.
 
-The GitHub Actions environment creates a MySQL 8.0 test database named `timeclock_test`, installs PHP 8.5 and the required PHP extensions, installs the Composer dependencies, and initializes the database using `db.sql`.
+The GitHub Actions workflow is configured to create a temporary Microsoft SQL Server instance and a test database named `timeclock_test`. It installs PHP 8.5 and the required PHP extensions, including the SQL Server PDO driver, installs the Composer dependencies, and initializes the database using the SQL Server-compatible schema in `db.sql`.
 
 The workflow then starts the PHP application on:
 
@@ -313,9 +317,9 @@ and runs:
 composer test
 ```
 
-This allows the automated tests to be run in a consistent environment instead of relying only on a developer's local computer.
+This setup is intended to allow the automated tests to run in a consistent environment without relying on a developer's local database server or credentials.
 
-If the GitHub Actions workflow fails, the workflow results should be reviewed to determine whether the failure occurred during environment setup or while running the PHPUnit tests.
+If the GitHub Actions workflow fails, review the workflow results to determine whether the failure occurred during SQL Server startup, database initialization, PHP setup, or PHPUnit execution.
 
 ---
 
@@ -337,14 +341,18 @@ Then try running the tests again.
 
 ### Database Connection Error
 
-If the tests cannot connect to the database, verify that the MySQL server is running and that the test database is available.
+If the tests cannot connect to the database, verify that the Microsoft SQL Server service is running, that the test database exists, and that the configured connection settings are correct.
 
-The tests are configured to use:
+For local development, check:
 
-* Database: `timeclock_test`
-* Host: `127.0.0.1`
-* User: `root`
-* Password: Empty by default
+* The SQL Server instance name, such as `localhost\SQLEXPRESS`.
+* Whether Windows Authentication is configured and available to PHP.
+* Whether the `pdo_sqlsrv` extension is installed and enabled.
+* Whether `timeclock_test` exists and contains the required schema.
+
+For GitHub Actions, check the SQL Server container, the configured SQL login and password, and the `DB_HOST` value.
+
+The tests must use `timeclock_test`, not the normal application database.
 
 ### Tests Report the Wrong Database
 
