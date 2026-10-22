@@ -35,7 +35,7 @@ jobs:
           sudo apt-get install -y curl gnupg apt-transport-https
 
           curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
-            | sudo gpg --dearmor \
+            | sudo gpg --batch --yes --dearmor \
               -o /usr/share/keyrings/microsoft-prod.gpg
 
           curl -sSL \
