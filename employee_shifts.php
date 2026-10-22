@@ -45,7 +45,14 @@ $shifts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Calculate total hours for selected range
 $totalHoursStmt = $pdo->prepare("
     SELECT
-        COALESCE(SUM(TIMESTAMPDIFF(MINUTE, clock_in_time, IFNULL(clock_out_time, UTC_TIMESTAMP()))), 0) AS total_minutes
+        COALESCE(
+            SUM(DATEDIFF(
+                MINUTE,
+                clock_in_time,
+                COALESCE(clock_out_time, SYSUTCDATETIME())
+            )),
+            0
+        ) AS total_minutes
     FROM WORK_TIMES
     WHERE employee_id = ?
     AND clock_in_time BETWEEN ? AND ?

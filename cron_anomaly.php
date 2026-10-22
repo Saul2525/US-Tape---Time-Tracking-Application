@@ -5,7 +5,7 @@ $stmt = $pdo->query("
     SELECT employee_id, clock_in_time
     FROM WORK_TIMES
     WHERE clock_out_time IS NULL
-    AND TIMESTAMPDIFF(HOUR, clock_in_time, UTC_TIMESTAMP()) > 10
+    AND DATEDIFF(SECOND, clock_in_time, SYSUTCDATETIME()) > 36000
 ");
 
 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);

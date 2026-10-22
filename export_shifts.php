@@ -7,10 +7,9 @@ if (!isset($_SESSION['role_id'])) {
 }
 
 $roleStmt = $pdo->prepare("
-    SELECT can_edit_others
+    SELECT TOP 1 can_edit_others
     FROM ROLES
     WHERE role_id = ?
-    LIMIT 1
 ");
 $roleStmt->execute([$_SESSION['role_id']]);
 $currentRole = $roleStmt->fetch(PDO::FETCH_ASSOC);

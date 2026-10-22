@@ -8,10 +8,9 @@ if (!isset($_SESSION['role_id'])) {
 
 // Load permission flags from role table instead of hardcoded IDs.
 $roleStmt = $pdo->prepare("
-    SELECT role_name, can_edit_others, can_manage_users
+    SELECT TOP 1 role_name, can_edit_others, can_manage_users
     FROM ROLES
     WHERE role_id = ?
-    LIMIT 1
 ");
 $roleStmt->execute([$_SESSION['role_id']]);
 $currentRole = $roleStmt->fetch(PDO::FETCH_ASSOC);

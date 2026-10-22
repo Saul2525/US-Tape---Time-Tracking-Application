@@ -9,11 +9,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Fetch user by email
     $stmt = $pdo->prepare("
-        SELECT employee_id, first_name, password, role_id
+        SELECT TOP 1 employee_id, first_name, password, role_id
         FROM EMPLOYEES
-        WHERE email = ? 
+        WHERE email = ?
         AND is_active = 1
-        LIMIT 1
     ");
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);

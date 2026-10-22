@@ -1,0 +1,145 @@
+name: PHP CI
+
+on:
+  push:
+    branches: [ci-testing]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+
+    env:
+      DB_HOST: 127.0.0.1,1433
+      DB_NAME: timeclock_test
+      DB_USER: sa
+      DB_PASS: Ci_TestPassw0rd!2026
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Ci_TestPassw0rd!2026
+        ports:
+          - 1433:1433
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SQL Server Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl gnupg apt-transport-https
+
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo gpg --batch --yes --dearmor \
+              -o /usr/share/keyrings/microsoft-prod.gpg
+
+          curl -sSL \
+            https://packages.microsoft.com/config/ubuntu/24.04/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list
+
+          sudo apt-get update
+
+          sudo ACCEPT_EULA=Y apt-get install -y \
+            msodbcsql18 mssql-tools18 unixodbc-dev
+
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          extensions: pdo, pdo_sqlsrv, curl, zip
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Wait for SQL Server
+        run: |
+          for i in {1..60}; do
+            if sqlcmd \
+              -S "$DB_HOST" \
+              -U "$DB_USER" \
+              -P "$DB_PASS" \
+              -C \
+              -Q "SELECT 1" \
+              > /dev/null 2>&1; then
+              echo "SQL Server is ready."
+              exit 0
+            fi
+
+            echo "Waiting for SQL Server..."
+            sleep 2
+          done
+
+          echo "SQL Server failed to start."
+          exit 1
+
+      - name: Initialize Test Database
+        run: |
+          sqlcmd \
+            -S "$DB_HOST" \
+            -U "$DB_USER" \
+            -P "$DB_PASS" \
+            -C \
+            -b \
+            -Q "IF DB_ID(N'timeclock_test') IS NULL CREATE DATABASE [timeclock_test];"
+
+          sqlcmd \
+            -S "$DB_HOST" \
+            -U "$DB_USER" \
+            -P "$DB_PASS" \
+            -C \
+            -d "$DB_NAME" \
+            -i db.sql \
+            -b
+
+      - name: Create config.php
+        run: |
+          cat > config.php <<'PHP'
+          <?php
+
+          $dbHost = getenv('DB_HOST') ?: 'localhost\\SQLEXPRESS';
+          $dbName = getenv('DB_NAME') ?: 'timeclock';
+          $dbUser = getenv('DB_USER');
+          $dbPass = getenv('DB_PASS');
+
+          $dsn = "sqlsrv:Server={$dbHost};Database={$dbName};TrustServerCertificate=1";
+
+          if ($dbUser !== false && $dbUser !== '') {
+              $pdo = new PDO($dsn, $dbUser, $dbPass ?: '');
+          } else {
+              // Use Windows Authentication for local development.
+              $pdo = new PDO($dsn);
+          }
+
+          $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+          PHP
+
+      - name: Start PHP Server
+        run: php -S 127.0.0.1:8001 > php-server.log 2>&1 &
+
+      - name: Wait for PHP Server
+        run: |
+          for i in {1..10}; do
+            if curl --silent --fail \
+              http://127.0.0.1:8001/index.php > /dev/null; then
+              echo "PHP server is ready."
+              exit 0
+            fi
+
+            echo "Waiting for PHP server..."
+            sleep 1
+          done
+
+          echo "PHP server failed to start."
+          cat php-server.log
+          exit 1
+
+      - name: Run Tests
+        run: composer test

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<phpunit bootstrap="vendor/autoload.php">
+    <php>
+        <env name="DB_HOST" value="localhost\SQLEXPRESS"/>
+        <env name="DB_NAME" value="timeclock_test"/>
+    </php>
+</phpunit>

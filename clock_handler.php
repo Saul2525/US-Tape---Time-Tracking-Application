@@ -20,10 +20,9 @@ if (!preg_match('/^\d{5}$/', $pin)) {
 */
 
 $stmt = $pdo->prepare("
-    SELECT employee_id, first_name, last_name
+    SELECT TOP 1 employee_id, first_name, last_name
     FROM EMPLOYEES
     WHERE pin = ? AND is_active = 1
-    LIMIT 1
 ");
 $stmt->execute([$pin]);
 
@@ -52,11 +51,10 @@ $ip  = $_SERVER['REMOTE_ADDR'] ?? null;
 */
 
 $stmt = $pdo->prepare("
-    SELECT work_time_id
+    SELECT TOP 1 work_time_id
     FROM WORK_TIMES
     WHERE employee_id = ?
     AND clock_out_time IS NULL
-    LIMIT 1
 ");
 $stmt->execute([$employeeId]);
 
@@ -73,7 +71,7 @@ if ($openShift) {
     // CLOCK OUT
     $pdo->prepare("
         UPDATE WORK_TIMES
-        SET clock_out_time = UTC_TIMESTAMP(),
+            SET clock_out_time = SYSUTCDATETIME(),
             clock_out_lat = ?,
             clock_out_lng = ?,
             clock_out_ip = ?
@@ -93,7 +91,7 @@ if ($openShift) {
     $pdo->prepare("
         INSERT INTO WORK_TIMES
         (employee_id, clock_in_time, clock_in_lat, clock_in_lng, clock_in_ip)
-        VALUES (?, UTC_TIMESTAMP(), ?, ?, ?)
+        VALUES (?, SYSUTCDATETIME(), ?, ?, ?)
     ")->execute([
         $employeeId,
         $lat,
