@@ -26,7 +26,8 @@ abstract class BaseWebTest extends TestCase
 
         $this->pdo = new PDO(
             "sqlsrv:Server=" . getenv('DB_HOST') .
-                ";Database=" . $dbName,
+                ";Database=" . $dbName .
+                ";TrustServerCertificate=1",
             null,
             null
         );
