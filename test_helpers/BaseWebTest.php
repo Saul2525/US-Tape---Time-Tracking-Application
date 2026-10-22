@@ -28,8 +28,8 @@ abstract class BaseWebTest extends TestCase
             "sqlsrv:Server=" . getenv('DB_HOST') .
                 ";Database=" . $dbName .
                 ";TrustServerCertificate=1",
-            null,
-            null
+            getenv('DB_USER') ?: null,
+            getenv('DB_PASS') ?: null
         );
 
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
